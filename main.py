@@ -1,31 +1,63 @@
-from itertools import chain
+#  using langchain-tavily feature for web search
+
+from typing import Any, Dict, List
+from pydantic import BaseModel, Field
 from dotenv import load_dotenv
-from langchain_core.prompts import PromptTemplate
-from langchain_ollama  import OllamaLLM
+from langchain.agents import create_agent
+from langchain.tools import tool
+from langchain_core.messages import HumanMessage
+from langchain_ollama import ChatOllama
+#from tavily import TavilyClient
+from langchain_tavily import TavilySearch
+from pydantic import Field
 
-import os
 
+
+# Load environment variables from .env file
 load_dotenv()
+
+class Source(BaseModel):
+    """Schema for a source used by a BaseModel"""
+    url: str = Field(description="url of the source")
+
+class AgentResponse(BaseModel):
+    """schema for a agent to provide response and sources"""
+    answer: str = Field(description="The agent's answer to the query")
+    sources: List[Source] = Field(default_factory=list, description="list of sources used to generate answers")
+
+
+#tavily = TavilyClient()
+
+# @tool
+# def search(query: str) -> Dict[str, Any]:
+#     """Search the web for current information including weather, news, and other real-time data.
+    
+#     Use this tool when you need to find current information that you don't have access to,
+#     such as weather conditions, current events, or any real-time data.
+    
+#     Args:
+#        query: The search query string describing what information to find.
+       
+#     Returns:
+#        The search results as a dictionary containing the requested information.
+#     """
+#     print(f"Searching for: {query}")
+#     #return "Weather is cool today in New York"
+#     return tavily.search(query=query)
+
+
+tavily_tool = TavilySearch(max_results=5)
+#tools = [search]
+tools = [tavily_tool]
+llm = ChatOllama(model="qwen2.5:3b", temperature=0)
+
+agent = create_agent(model = llm, tools=tools, response_format=AgentResponse)
 
 def main():
     print("Hello from langchain!")
-    #print(os.environ.get("HUGGINGFACEHUB_API_TOKEN"))
-
-    information = """
-    India accounts for the bulk of the Indian subcontinent, lying atop the Indian tectonic plate, and a part of the Indo-Australian Plate.[161] India's defining geologic processes began approximately 70 million years ago, when the Indian Plate, then part of the southern supercontinent Gondwana, began a north-eastward drift caused by seafloor spreading to its south-west, and later, south and south-east.[161] Simultaneously, the vast Tethyan oceanic crust, to its northeast, began to subduct under the Eurasian Plate.[161] The Indian continental crust, however, was obstructed and was sheared horizontally. Its lower crust and mantle slid under, but the upper layer piled up in sheets (or nappes) ahead of the subduction zone.[162] This created the orogeny, or process of mountain building, of the Himalayas.[163] The middle and stiffer layer continued to push into Tibet, causing crustal thickening of the Tibetan Plateau.[164] Immediately south of the emerging Himalayas, plate movement created a vast crescent-shaped trough that rapidly filled with river-borne sediment[165] and now constitutes the Indo-Gangetic Plain.[166] The original Indian plate makes its first appearance above the sediment in the ancient Aravalli range, which extends from the Delhi Ridge in a southwesterly direction. To the west lies the Thar Desert, the eastern spread of which is checked by the Aravallis.[167][168][169]
-    """
-    summaryTemplate = f"""
-    From the {information} given about indian Geography provide the below:
-    1.summary of the information
-    2.important points
-    """
-    summaryPromptTemplate = PromptTemplate(input_variables=["information"], template=summaryTemplate)
-
-    llm = OllamaLLM(model ="llama2",temperature= 0.3)
-
-    chain =summaryPromptTemplate | llm
-    response =chain.invoke({"information": information})
+    response=agent.invoke({"messages": [HumanMessage(content="search for 3 job postings for  fresher for an ai engineer using langchain in India, Banglore/Bengaluru on linkedin and list their details")]})
     print(response)
+   
 
 if __name__ == "__main__":
     main()
